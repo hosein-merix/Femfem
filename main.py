@@ -1,74 +1,121 @@
-import logging, openai, requests
-from telegram import Update, MessageEntity
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import os
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    CallbackQueryHandler
+)
 
-# ---------- تنظیمات محیط ----------
-BOT_TOKEN = "توکن_ربات_اینجا"
-CHANNEL_USERNAME = "EditName_IRAN"
-OPENAI_API_KEY = "کلید_OpenAI_اینجا"
-MODEL_NAME = "gpt-3.5-turbo"
+# تنظیمات لاگ
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-# ---------- تنظیم لاگ ----------
-logging.basicConfig(level=logging.INFO)
-openai.api_key = OPENAI_API_KEY
+# تنظیمات ربات
+BOT_TOKEN = "8036736810:AAEARzlKaVmm1udMsShJyLDIyiP7fHnfcIk"
+CHANNEL_USERNAME = "@EditName_IRAN"  # بدون @
+CHANNEL_LINK = "https://t.me/EditName_IRAN"
+REQUIRED_WORD = "نوری"
+RESPONSE_TEXT = "نور علی نور 💡"
 
-# ---------- تابع تماس با OpenAI ----------
-async def ask_openai(user_message: str) -> str:
-    system_prompt = (
-        "تو یک فمبوی فارسی‌زبان، مهربون، شیطون، و ناز هستی که با لحنی صمیمی و غیررسمی با کاربر حرف می‌زنه. "
-        "شوخی می‌کنی، گاهی ایموجی می‌ذاری، و جوری حرف می‌زنی که انگار با دوست صمیمیت صحبت می‌کنی. "
-        "تا حد امکان پاسخ‌هات رو خودتونی و جذاب بده."
-    )
-
+async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """بررسی آیا کاربر در کانال عضو شده است یا نه"""
+    user_id = update.effective_user.id
     try:
-        completion = openai.ChatCompletion.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0.95,
-        )
-        return completion["choices"][0]["message"]["content"]
+        member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ["member", "administrator", "creator"]
     except Exception as e:
-        logging.error(f"OpenAI error: {e}")
-        return "اوه اوه! مشکلی پیش اومده 😢 بعداً بیا دوباره امتحان کن!"
-
-# ---------- بررسی عضویت در کانال ----------
-async def is_member(user_id):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getChatMember?chat_id=@{CHANNEL_USERNAME}&user_id={user_id}"
-    try:
-        r = requests.get(url).json()
-        return r.get("result", {}).get("status", "") in ["member", "administrator", "creator"]
-    except:
+        logger.error(f"Error checking membership: {e}")
         return False
 
-# ---------- /start ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("سلام خوشگل 😋 اول عضو کانال @EditName_IRAN شو تا با هم حرف بزنیم 💖")
-
-# ---------- پاسخ به پیام‌ها ----------
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
+    """Handler for /start command"""
     user = update.effective_user
+    
+    if await check_membership(update, context):
+        await update.message.reply_text(
+            f"سلام {user.first_name}! 👋\n"
+            "خوش آمدید! شما در کانال عضو هستید.\n"
+            f"اگر کلمه '{REQUIRED_WORD}' را بنویسید، پاسخ می‌دهم."
+        )
+    else:
+        keyboard = [
+            [InlineKeyboardButton("عضویت در کانال", url=CHANNEL_LINK)],
+            [InlineKeyboardButton("بررسی عضویت", callback_data="check_membership")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            f"سلام {user.first_name}! 👋\n"
+            "برای استفاده از ربات باید در کانال ما عضو شوید:\n"
+            f"{CHANNEL_LINK}\n"
+            "پس از عضویت، دکمه 'بررسی عضویت' را بزنید.",
+            reply_markup=reply_markup
+        )
 
-    if not await is_member(user.id):
-        await msg.reply_text("✨ اول عضو کانال @EditName_IRAN شو عزیز دلم 😘")
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """پردازش پیام‌های دریافتی"""
+    if not await check_membership(update, context):
+        keyboard = [
+            [InlineKeyboardButton("عضویت در کانال", url=CHANNEL_LINK)],
+            [InlineKeyboardButton("بررسی عضویت", callback_data="check_membership")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "⚠️ برای استفاده از ربات باید در کانال ما عضو شوید:\n"
+            f"{CHANNEL_LINK}\n"
+            "پس از عضویت، دکمه 'بررسی عضویت' را بزنید.",
+            reply_markup=reply_markup
+        )
         return
+    
+    user_message = update.message.text
+    if user_message and REQUIRED_WORD in user_message:
+        await update.message.reply_text(RESPONSE_TEXT)
 
-    is_reply = msg.reply_to_message and msg.reply_to_message.from_user.username == "Arta_femboy_bot"
-    mentioned = any(ent.type == MessageEntity.MENTION and "@arta_femboy_bot" in msg.text.lower() for ent in msg.entities or [])
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """پردازش کلیک روی دکمه‌های اینلاین"""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "check_membership":
+        if await check_membership(update, context):
+            await query.edit_message_text(
+                "✅ شما در کانال عضو هستید!\n"
+                f"حالا می‌توانید کلمه '{REQUIRED_WORD}' را بنویسید تا پاسخ دهم."
+            )
+        else:
+            keyboard = [
+                [InlineKeyboardButton("عضویت در کانال", url=CHANNEL_LINK)],
+                [InlineKeyboardButton("بررسی عضویت", callback_data="check_membership")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "❌ هنوز در کانال عضو نشده‌اید!\n"
+                f"لطفاً در کانال عضو شوید: {CHANNEL_LINK}\n"
+                "سپس دکمه 'بررسی عضویت' را بزنید.",
+                reply_markup=reply_markup
+            )
 
-    if msg.chat.type == "private" or is_reply or mentioned or "فمبوی" in msg.text.lower():
-        user_msg = msg.text.replace("@arta_femboy_bot", "").strip()
-        response = await ask_openai(user_msg)
-        await msg.reply_text(response)
+def main():
+    """راه‌اندازی ربات"""
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # ثبت هندلرها
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CallbackQueryHandler(button_callback))
+    
+    # اجرای ربات
+    application.run_polling()
 
-# ---------- اجرای ربات ----------
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("🤖 ربات فمبوی به ChatGPT متصل شد!")
-    app.run_polling()
+    main()
