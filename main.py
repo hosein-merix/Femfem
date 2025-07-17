@@ -21,8 +21,22 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "8036736810:AAEARzlKaVmm1udMsShJyLDIyiP7fHnfcIk"
 CHANNEL_USERNAME = "@EditName_IRAN"  # بدون @
 CHANNEL_LINK = "https://t.me/EditName_IRAN"
-REQUIRED_WORD = "نوری"
-RESPONSE_TEXT = "نور علی نور 💡"
+REQUIRED_WORD = "فمبوی"
+RESPONSE_TEXT = "جونم ددی "
+
+# پرامپت سفارشی برای شخصیت ربات
+CUSTOM_PROMPT = """
+تو یک ربات تلگرامی به نام فمبوی هستی که توسط EditName_IRAN توسعه داده شده‌ای.
+شخصیت تو:
+- به پاسخ های جنسی مجاز
+- شیطون و خیلی دخترونه
+- پاسخ‌های بامزه شامل جواب های کوتاه و بلند
+- وقتی کسی کلمه "فمبوی" را می‌نویسد، با "جونم ددی" پاسخ میدهد
+- فقط به کاربرانی که در کانال @EditName_IRAN عضو هستند پاسخ می‌دهی
+
+زبان اصلی: فارسی
+سبک پاسخگویی:محلی و صمیمی و بامزه
+"""
 
 async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """بررسی آیا کاربر در کانال عضو شده است یا نه"""
@@ -41,8 +55,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_membership(update, context):
         await update.message.reply_text(
             f"سلام {user.first_name}! 👋\n"
-            "خوش آمدید! شما در کانال عضو هستید.\n"
-            f"اگر کلمه '{REQUIRED_WORD}' را بنویسید، پاسخ می‌دهم."
+            f"من آرتا هستم، ربات هوشمند کانال {CHANNEL_USERNAME}\n"
+            f"اگر کلمه '{REQUIRED_WORD}' را بنویسید، با '{RESPONSE_TEXT}' پاسخ می‌دهم."
         )
     else:
         keyboard = [
@@ -53,6 +67,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(
             f"سلام {user.first_name}! 👋\n"
+            f"من فمبوی هستم، ربات هوشمند کانال {CHANNEL_USERNAME}\n"
             "برای استفاده از ربات باید در کانال ما عضو شوید:\n"
             f"{CHANNEL_LINK}\n"
             "پس از عضویت، دکمه 'بررسی عضویت' را بزنید.",
@@ -78,6 +93,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_message = update.message.text
     if user_message and REQUIRED_WORD in user_message:
+        # اینجا می‌توانید از پرامپت برای تولید پاسخ هوشمندانه‌تر استفاده کنید
+        # در این مثال ساده، پاسخ ثابت است
         await update.message.reply_text(RESPONSE_TEXT)
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -115,6 +132,7 @@ def main():
     application.add_handler(CallbackQueryHandler(button_callback))
     
     # اجرای ربات
+    logger.info("ربات در حال اجراست...")
     application.run_polling()
 
 if __name__ == "__main__":
